@@ -1,14 +1,24 @@
 # GPU Drano
 
-GPU Drano is a static analysis tool for finding
+GPU Drano is a static analysis tool for GPU Programs.  One of the analyses in
+GPU Drano is for finding
 [uncoalesced memory accesses](https://devblogs.nvidia.com/parallelforall/how-access-global-memory-efficiently-cuda-c-kernels/)
-in CUDA code.
+in CUDA code. The other analysis supported by GPU Drano is analysis to prove
+block-size independence of GPU programs.
 
 Modern GPUs bundle threads into warps. All threads in a warp perform operations
 in lockstep. Memory accesses to different memory locations can be coalesced into
 a single load/store if the memory is adjacent or *close enough* in memory. When 
 the memory accessed by a warp is far apart, multiple load/stores are required to
 complete the memory transaction, and we say the access is *uncoalesced*.
+
+A GPU kernel is said to be *block-size independent*, if modifying the block-size
+while keeping the total number of threads same, does not break the functionality
+of the program. This is essential for correct block-size tuning in GPU programs,
+which is often used to improve program performance.
+
+We have also implemented a dynamic analysis to identify uncoalesced accesses, which
+will be shared in a separate repository.
 
 ## Details
 ### Implementation
@@ -27,8 +37,9 @@ and to run dynamic anlaysis, an NVIDIA GPU and compatible drivers are required. 
 for more information.
 
 ### Algorithm and Performance
-The details of the algorithm and the design choices can be found in our paper 
-[GPUDrano: Detecting Uncoalesced Accesses in GPU Programs](https://www.cis.upenn.edu/~alur/Cav17.pdf).
+The details of the algorithm and the design choices can be found in following papers:
+1) [GPUDrano: Detecting Uncoalesced Accesses in GPU Programs](https://www.cis.upenn.edu/~alur/Cav17.pdf).
+2) [Block-size Independence for GPU Programs](https://www.cis.upenn.edu/~alur/SAS18.pdf).
 
 ## Installation
 The script `installnrun.sh` included with the project details the steps required
@@ -36,8 +47,10 @@ to build and execute GPU Drano on an Ubuntu system. To run the script,
 * Download GPU Drano and set `ROOT_DIR` to the path to the downloaded folder. 
 * Run `sh installnrun.sh`
 
-This would automatically install GPU Drano on a Linux system. We also describe the
-installation steps below. 
+This would automatically install GPU Drano on a Linux system. We further
+describe the installation steps for installing the uncoalesced access analysis
+here. The installation for block-size independence analysis (also refered to as
+block-size invariance analysis) can be done similarly.
 
 ### Setup LLVM
 
@@ -193,9 +206,16 @@ written to standard error which may be redirected to a file.
 To generate verbose analysis results (LLVM IR annotated with analysis info), run
 `opt` with an additional `-debug-only=uncoalesced-analysis` flag.
 
+The following command can be used to run the block-size independence analysis on a program.
+
+```
+opt -load ../../../build/lib/LLVMBlockSizeInvarianceAnalysis.so - -instnamer -always-inline -interproc-bsize-invariance-analysis < gaussian-cuda-nvptx64-nvidia-cuda-sm_20.ll > /dev/null 2> gpuDranoResults.txt
+```
+
 ### Understanding GPU Drano's output
-The generated results reports all accesses that might be potentially uncoalesced
-in each of the GPU kernels. For example, here are the results for the analysis of
+The generated results for uncoalesced access analysis reports all accesses that
+might be potentially uncoalesced in each of the GPU kernels. For example, here
+are the results for the analysis of
 `gaussian.cu`. 
 ```
 Analysis Results: 
@@ -216,7 +236,10 @@ Each result item points to a potentially uncoalesced access in the source code.
 For example, access to `m_cuda` at line 295, column 59 in gaussian.cu at method
 `Fan1()` is uncoalesced.
 
-### Running GPU Drano on Rodinia Benchmark Suite
+Similarly, generated results for block-size independence analysis identify all
+kernels that are block-size independent!
+
+### Running GPU Drano Uncoalesced Access Analysis on Rodinia Benchmark Suite
 Rodinia is popular benchmark suite of GPU programs consisting of 22 programs from
 different domains. We analyzed the suite and found 111 real uncoalesced accesses
 using static analysis. To reproduce the results, here are the steps involved:
@@ -242,4 +265,37 @@ using static analysis. To reproduce the results, here are the steps involved:
 5) Summarize results:
 ```
    ./summarize-results.sh
+```
+
+### Running GPU Drano Block-size Independence Analysis on Nvidia CUDA SDK 8.0 Samples
+Nvidia provides a set of CUDA samples which can be used for various applications.
+We analyzed the suite to identify block-size independent kernels in the samples. To
+reproduce the results, the steps are:
+
+1) Update `HOME` variable in `NVIDIA_CUDA-8.0_Samples/common/drano.mk` to the root
+   GPU Drano directory.
+
+2) Install OpenGL (required for compiling a few benchmarks). On Ubuntu, following
+   command can be used:
+```
+   sudo apt-get install freeglut3-dev
+```
+
+3) Go to the directory `NVIDIA_CUDA-8.0_Samples`
+
+4) Compile benchmarks:
+```
+   sh compile.sh
+```
+5) Run GPU Drano on benchmarks (takes about 2 hours):
+```
+   sh run-analysis.sh
+```
+
+   Analysis of each benchmark generates results in its respective folder in log-files
+   named `log_<filename>`.
+
+6) Summarize results:
+```
+   ./summarize-bsize-independence.sh
 ```
