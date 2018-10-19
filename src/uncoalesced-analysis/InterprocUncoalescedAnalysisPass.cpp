@@ -31,7 +31,7 @@ bool InterproceduralUncoalescedAnalysisPass::runOnModule(Module &M) {
 
   // Run analysis on functions.
   for (Function *F : functionList) {
-    DEBUG(errs() << "Analyzing function: " << F->getName());
+    LLVM_DEBUG(errs() << "Analyzing function: " << F->getName());
     DominatorTree DT(*F);
     UncoalescedAnalysis UA(F, &DT, &FunctionArgumentValues);
     errs() << "Analysis Results: \n";

@@ -34,14 +34,14 @@ MultiplierValue UncoalescedAnalysis::getConstantExprValue(const Value* p) {
   // Handle inline getelementptr instruction.
   GetElementPtrInst* gep = nullptr;
   if (pe->getOpcode() == Instruction::GetElementPtr) {
-    DEBUG(errs() << "Inline get elementptr found \n");
+    LLVM_DEBUG(errs() << "Inline get elementptr found \n");
     gep = cast<GetElementPtrInst>(pe->getAsInstruction());
     if (isa<ConstantExpr>(gep->getPointerOperand())) {
       pe = cast<ConstantExpr>(gep->getPointerOperand());
     }
   }
   if (pe->getOpcode() == Instruction::AddrSpaceCast) {
-    DEBUG(errs() << "Special memory space found \n");
+    LLVM_DEBUG(errs() << "Special memory space found \n");
     const AddrSpaceCastInst* asci =
         cast<AddrSpaceCastInst>(pe->getAsInstruction());
     // Shared memory
@@ -154,6 +154,19 @@ GPUState UncoalescedAnalysis::ExecuteInstruction(
             name.equals("llvm.nvvm.read.ptx.sreg.nctaid.y") ||
             name.equals("llvm.nvvm.read.ptx.sreg.nctaid.z")) {
           st.setValue(CI, MultiplierValue(ZERO));
+        } else if (name.equals("llvm.memcpy.p0i8.p0i8.i64")) {
+          // ***** Handling special case of copy between data structures. *****
+          Value* dstOperand = CI->getArgOperand(0);
+          if (isa<BitCastInst>(dstOperand)) {
+            // Get actual operand from the bitcast instruction.
+            dstOperand = cast<BitCastInst>(dstOperand)->getOperand(0);
+          }
+          Value* srcOperand = CI->getArgOperand(1);
+          if (isa<BitCastInst>(srcOperand)) {
+            // Get actual operand from the bitcast instruction.
+            srcOperand = cast<BitCastInst>(srcOperand)->getOperand(0);
+          }
+          st.setValue(dstOperand, st.getValue(srcOperand));
         } else {
           st.setValue(CI, MultiplierValue(TOP));
         }
@@ -184,13 +197,13 @@ GPUState UncoalescedAnalysis::ExecuteInstruction(
         FunctionArgumentValues_->emplace(calledF, argMap);
 
         // Print called arguments.
-        DEBUG(errs() << "Called function " << calledF->getName()
+        LLVM_DEBUG(errs() << "Called function " << calledF->getName()
               << " with args (");
         for (auto argIt = calledF->arg_begin();
              argIt != calledF->arg_end(); argIt++) {
-          DEBUG(errs() << argMap[&*argIt].getString() << ", ");
+          LLVM_DEBUG(errs() << argMap[&*argIt].getString() << ", ");
         }
-        DEBUG(errs() << ")\n");
+        LLVM_DEBUG(errs() << ")\n");
       }
     }
 
@@ -218,9 +231,9 @@ GPUState UncoalescedAnalysis::ExecuteInstruction(
         ((psize > 4 && (v.getType() == ONE || v.getType() == NEGONE)) ||
          (v.getType() == TOP))) {
       UncoalescedAccesses_.insert(LI);
-      DEBUG(errs() << "UNCOALESCED ACCESS FOUND in access at ");
-      DEBUG(cast<Instruction>(LI)->getDebugLoc().print(errs()));
-      DEBUG(errs() << " in \n      " << *LI << "\n\n");
+      LLVM_DEBUG(errs() << "UNCOALESCED ACCESS FOUND in access at ");
+      LLVM_DEBUG(cast<Instruction>(LI)->getDebugLoc().print(errs()));
+      LLVM_DEBUG(errs() << " in \n      " << *LI << "\n\n");
     }
     // if p stores address, return value(p) * (incr 0)
     // else return value(p).
@@ -231,6 +244,11 @@ GPUState UncoalescedAnalysis::ExecuteInstruction(
     //         Hence, only loads on such variables are set to address type.
     if (LI->getType()->isPointerTy()) { v.setAddressType(); }
 
+//    // Handling arrays.
+//    if (st.isArray(p)) {
+//      // Register LI to be the 0th index into array p.
+//      st.registerArrayIndex(LI, p, 0);
+//    }
     st.setValue(LI, v);
 
   } else if (isa<GetElementPtrInst>(I)) {
@@ -255,6 +273,23 @@ GPUState UncoalescedAnalysis::ExecuteInstruction(
     // offset increment in address stored in pointer p.
     if (st.getValue(p).isAddressType()) v.setAddressType();
 
+//    // Handling arrays.
+//    // If p is an array pointer and GEPI indexes into p via a constant,
+//    // register GEPI to be an element of array for p.
+//    if (isa<ConstantInt>(GEPI->getOperand(1))) {
+//      int offset = cast<ConstantInt>(GEPI->getOperand(1))->getSExtValue();
+//      const auto* ty = cast<PointerType>(p->getType())->getElementType();
+//      if (ty->isArrayTy() && offset == 0) {
+//        if (isa<ConstantInt>(GEPI->getOperand(2))) {
+//          offset = cast<ConstantInt>(GEPI->getOperand(2))->getSExtValue();
+//          st.registerArrayIndex(GEPI, p, offset);
+//        }
+//      } else if (st.getArrayIndex(p)) {
+//        const auto* idx = st.getArrayIndex(p);
+//        st.registerArrayIndex(GEPI, idx->first/*array*/, idx->second/*offset*/
+//            + offset);
+//      }
+//    }
     st.setValue(GEPI, v);
 
   } else if (isa<StoreInst>(I)) {
@@ -269,12 +304,21 @@ GPUState UncoalescedAnalysis::ExecuteInstruction(
         ((psize > 4 && (v.getType() == ONE || v.getType() == NEGONE)) ||
          (v.getType() == TOP))) {
       UncoalescedAccesses_.insert(SI);
-      DEBUG(errs() << "UNCOALESCED ACCESS FOUND in access at ");
-      DEBUG(cast<Instruction>(SI)->getDebugLoc().print(errs()));
-      DEBUG(errs() << " in \n      " << *SI << "\n\n");
+      LLVM_DEBUG(errs() << "UNCOALESCED ACCESS FOUND in access at ");
+      LLVM_DEBUG(cast<Instruction>(SI)->getDebugLoc().print(errs()));
+      LLVM_DEBUG(errs() << " in \n      " << *SI << "\n\n");
     }
 
     const Value* val = SI->getValueOperand();
+//    // Handling arrays.
+//    // If val is an array-index, duplicate the array represented by val to p.
+//    // Assumption: The original array is not updated via the new index p.
+//    if (st.getArrayIndex(val)) {
+//      const auto* idx = st.getArrayIndex(val);
+//      if (idx->second/*offset*/ == 0) {
+//        st.duplicateArray(idx->first/*array*/, p);
+//      }
+//    } else 
     if (!v.isAddressType()) {
       // Store value only if p is not address type and not an array.
       v = st.getValue(val);
@@ -292,7 +336,7 @@ GPUState UncoalescedAnalysis::ExecuteInstruction(
     // of thread ID and hence, is assigned the value (unknown).
     const BasicBlock *domBlock
         = DT_->getNode(const_cast<BasicBlock*>(I->getParent()))->getIDom()->getBlock();
-    DEBUG(errs() << "...Dominator Instruction for PHI node:"
+    LLVM_DEBUG(errs() << "...Dominator Instruction for PHI node:"
         << "\n     " << *domBlock->getTerminator() << "\n");
 
     if (isa<BranchInst>(domBlock->getTerminator())) {
@@ -365,7 +409,7 @@ void UncoalescedAnalysis::BuildAnalysisInfo(GPUState st) {
   UncoalescedAccesses_.clear();
   baseSizeMap_.clear();
 
-  DEBUG(errs() << "-------------- computing uncoalesced accesses ------------------\n");
+  LLVM_DEBUG(errs() << "-------------- computing uncoalesced accesses ------------------\n");
   errs() << "Function: " << F_->getName() << "\n";
   initialState_ = st;
   entryBlock_ = &F_->getEntryBlock();

@@ -39,10 +39,21 @@ mkdir -p ${LLVM_DIR}/lib/Transforms/UncoalescedAnalysis &&
 cp -R ${SRC_DIR}/abstract-execution/* ${LLVM_DIR}/lib/Transforms/UncoalescedAnalysis/ &&
 cp -R ${SRC_DIR}/uncoalesced-analysis/* ${LLVM_DIR}/lib/Transforms/UncoalescedAnalysis/ &&
 
+cd ${ROOT_DIR} &&
+mkdir -p ${LLVM_DIR}/lib/Transforms/BlockSizeInvarianceAnalysis &&
+cp -R ${SRC_DIR}/abstract-execution/* ${LLVM_DIR}/lib/Transforms/BlockSizeInvarianceAnalysis/ &&
+cp -R ${SRC_DIR}/bsize-invariance-analysis/* ${LLVM_DIR}/lib/Transforms/BlockSizeInvarianceAnalysis/ &&
+
+
 # Add Drano to LLVM build environment
 if ! grep -q UncoalescedAnalysis "${LLVM_DIR}/lib/Transforms/CMakeLists.txt" ; then
   echo "add_subdirectory(UncoalescedAnalysis)" >> ${LLVM_DIR}/lib/Transforms/CMakeLists.txt ;
 fi
+
+if ! grep -q BlockSizeInvarianceAnalysis "${LLVM_DIR}/lib/Transforms/CMakeLists.txt" ; then
+  echo "add_subdirectory(BlockSizeInvarianceAnalysis)" >> ${LLVM_DIR}/lib/Transforms/CMakeLists.txt ;
+fi
+
 
 # Build GPUDrano
 mkdir -p ${LLVM_BUILD_DIR} &&

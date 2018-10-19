@@ -41,7 +41,7 @@ class AbstractState {
     return valueMap_.at(in);
   }
 
-  void setValue(const Value* in, T v) { valueMap_[in] = v; }
+  virtual void setValue(const Value* in, T v) { valueMap_[in] = v; }
 
   virtual U mergeState(const U& st) const;
 

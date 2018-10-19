@@ -152,7 +152,7 @@ void AbstractExecutionEngine<T, U>::Execute() {
     auto unit = getNextExecutionUnit(worklist);
     const BasicBlock *b = unit.first; // next block to be executed.
     U st = unit.second; // state before next block.
-    DEBUG(errs() << "BasicBlock: " << b->getName() << "\n");
+    LLVM_DEBUG(errs() << "BasicBlock: " << b->getName() << "\n");
 
     // Clear buffer.
     BlocksToExecuteBuffer_.clear();
@@ -178,7 +178,7 @@ void AbstractExecutionEngine<T, U>::Execute() {
         StateBeforeInstructionMap_[I] = st;
       }
       
-      DEBUG(errs() << "   " << *I << ", " << st.printInstructionState(I) << "\n");
+      LLVM_DEBUG(errs() << "   " << *I << ", " << st.printInstructionState(I) << "\n");
       st = ExecuteInstruction(I, st);
     }
     // Add subsequent blocks to be executed. Note that these were added to

@@ -9,11 +9,11 @@ using namespace llvm;
 // Defines an abstract state used by the increment value analysis.
 class GPUState : public AbstractState<MultiplierValue, GPUState> {
  public:
-  GPUState() : numThreads_(MultiplierValue(TOP)) {}
+  GPUState() : numThreads_(MultiplierValue(MultiplierValueType::TOP)) {}
 
   void clear() {
     AbstractState::clear();
-    numThreads_ = MultiplierValue(TOP);
+    numThreads_ = MultiplierValue(MultiplierValueType::TOP);
   } 
 
   bool operator==(const GPUState& st) const {

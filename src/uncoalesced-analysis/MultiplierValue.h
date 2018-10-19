@@ -25,6 +25,8 @@
 // - (one) : The variable is true for at most one thread.
 // - (negone) : The variable is false for at most one thread.
 
+namespace uncoalesced_analysis {
+
 enum MultiplierValueType {
   BOT,
   ZERO,
@@ -33,9 +35,13 @@ enum MultiplierValueType {
   TOP
 }; 
 
+}
+
+using namespace uncoalesced_analysis;
+
 class MultiplierValue : public PointerAbstractValue<MultiplierValue> { 
  public:
-  MultiplierValue() : t_(BOT), isBool_(false) {}
+  MultiplierValue() : t_(MultiplierValueType::BOT), isBool_(false) {}
 
   MultiplierValue(MultiplierValueType t, bool isBool = false)
       : t_(t), isBool_(isBool) {}
