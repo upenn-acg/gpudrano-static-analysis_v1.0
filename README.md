@@ -17,8 +17,8 @@ while keeping the total number of threads same, does not break the functionality
 of the program. This is essential for correct block-size tuning in GPU programs,
 which is often used to improve program performance.
 
-We have also implemented a dynamic analysis to identify uncoalesced accesses, which
-will be shared in a separate repository.
+We have also implemented a dynamic analysis to identify uncoalesced accesses, it's
+available in [this repository](https://github.com/upenn-acg/gpuDranoDynamicAnalysis).
 
 ## Details
 ### Implementation
